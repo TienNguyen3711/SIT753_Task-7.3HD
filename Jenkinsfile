@@ -3,66 +3,69 @@ pipeline {
   environment {
     APP_NAME = 'housing-ml-api'
     BUILD_TAGGED = "${env.BUILD_NUMBER}"
-    DOCKERHUB_NAMESPACE = 'tiennguyen371'          
+    DOCKERHUB_NAMESPACE = 'tiennguyen371'
     IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
     IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
-    SONARQUBE_NAME = 'SonarQubeServer'             
+    SONARQUBE_NAME = 'SonarQubeServer'
   }
-  options { 
-    timestamps()   // chỉ để timestamps trong options
+  options {
+    timestamps()
   }
-  triggers { pollSCM('H/5 * * * *') } // hoặc GitHub webhook
+  triggers { pollSCM('H/5 * * * *') }
 
   stages {
     stage('Checkout') {
       steps {
-        ansiColor('xterm') {
-          checkout scm
-        }
+        checkout scm
       }
     }
 
     stage('Code Quality (Lint)') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
       steps {
-        ansiColor('xterm') {
-          sh '''
-            python3 -m venv .venv
-            . .venv/bin/activate
-            pip install -r requirements.txt
-            black --check .
-            flake8 .
-          '''
-        }
+        sh '''
+          python --version
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+          black --check .
+          flake8 .
+        '''
       }
     }
 
     stage('Test') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
       steps {
-        ansiColor('xterm') {
-          sh '''
-            . .venv/bin/activate
-            pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
-          '''
-        }
+        sh '''
+          . .venv/bin/activate
+          pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
+        '''
       }
       post {
         always {
           junit 'reports/junit.xml'
           recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
-          publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+          publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')],
+                          sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
         }
       }
     }
 
     stage('SonarQube Analysis') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
       steps {
-        ansiColor('xterm') {
-          withSonarQubeEnv("${SONARQUBE_NAME}") {
-            sh '''
-              . .venv/bin/activate
-              sonar-scanner
-            '''
-          }
+        withSonarQubeEnv("${SONARQUBE_NAME}") {
+          sh '''
+            . .venv/bin/activate
+            sonar-scanner
+          '''
         }
       }
     }
@@ -76,29 +79,27 @@ pipeline {
     }
 
     stage('Build (Docker)') {
+      agent any
       steps {
-        ansiColor('xterm') {
-          sh '''
-            docker build -t ${IMAGE} .
-          '''
-        }
+        sh '''
+          docker build -t ${IMAGE} .
+        '''
       }
     }
 
     stage('Security') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
       steps {
-        ansiColor('xterm') {
-          sh '''
-            . .venv/bin/activate
-            # Code security
-            bandit -r app -f junit -o reports/bandit.xml || true
-            pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
-            # Image security (nếu có Trivy)
-            if command -v trivy >/dev/null 2>&1; then
-              trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
-            fi
-          '''
-        }
+        sh '''
+          . .venv/bin/activate
+          bandit -r app -f junit -o reports/bandit.xml || true
+          pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+          if command -v trivy >/dev/null 2>&1; then
+            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
+          fi
+        '''
       }
       post {
         always {
@@ -109,46 +110,43 @@ pipeline {
     }
 
     stage('Deploy: Staging') {
+      agent any
       steps {
-        ansiColor('xterm') {
-          sh '''
-            IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
-            sleep 2
-            curl -sSf http://localhost:8000/health
-          '''
-        }
+        sh '''
+          IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
+          sleep 2
+          curl -sSf http://localhost:8000/health
+        '''
       }
     }
 
     stage('Release: Tag & Push Image (main only)') {
       when { branch 'main' }
+      agent any
       steps {
-        ansiColor('xterm') {
-          withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh '''
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              docker tag ${IMAGE} ${IMAGE_LATEST}
-              docker push ${IMAGE}
-              docker push ${IMAGE_LATEST}
-            '''
-          }
+        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
-            git config user.email "ci@example.com"
-            git config user.name "jenkins"
-            git tag -a v${BUILD_NUMBER} -m "Release ${BUILD_NUMBER}"
-            git push origin v${BUILD_NUMBER} || true
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            docker tag ${IMAGE} ${IMAGE_LATEST}
+            docker push ${IMAGE}
+            docker push ${IMAGE_LATEST}
           '''
         }
+        sh '''
+          git config user.email "ci@example.com"
+          git config user.name "jenkins"
+          git tag -a v${BUILD_NUMBER} -m "Release ${BUILD_NUMBER}"
+          git push origin v${BUILD_NUMBER} || true
+        '''
       }
     }
 
     stage('Smoke + Monitoring Check') {
+      agent any
       steps {
-        ansiColor('xterm') {
-          sh '''
-            curl -sSf http://localhost:8000/metrics | head -n 20
-          '''
-        }
+        sh '''
+          curl -sSf http://localhost:8000/metrics | head -n 20
+        '''
       }
     }
   }
