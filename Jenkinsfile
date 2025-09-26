@@ -43,14 +43,14 @@ pipeline {
       steps {
         sh '''
           . .venv/bin/activate
-          pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
+          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
         '''
       }
       post {
         always {
           junit 'reports/junit.xml'
           recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
-          recordCoverage tools: [cobertura(pattern: 'reports/coverage.xml')]
+          recordCoverage tools: [[parser: 'Coverage.py', pattern: 'reports/coverage.xml']]
         }
       }
     }
