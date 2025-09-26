@@ -1,12 +1,7 @@
 pipeline {
-    // 1. Dùng Docker Agent với Python image để đảm bảo có sẵn 'pip' và 'python'
-    agent {
-        docker {
-            image 'python:3.9-slim' // Image Python chính thức, gọn nhẹ
-            // Thêm các tham số tùy chọn nếu cần (ví dụ: Sonar-scanner)
-            // args '-v /usr/bin/sonar-scanner:/usr/bin/sonar-scanner' 
-        }
-    }
+    // 1. Dùng agent any để tránh lỗi biên dịch do thiếu Docker Pipeline Plugin.
+    // Các bước Python cụ thể sẽ chạy bên trong Docker container.
+    agent any
 
     environment {
         APP_NAME              = 'housing-ml-api'
@@ -34,29 +29,39 @@ pipeline {
 
         stage('Code Quality (Lint)') {
             steps {
-                sh '''
-                // Cài đặt tất cả dependencies trong môi trường Docker hiện tại
-                pip install --no-cache-dir -r requirements.txt
-                
-                // Thực thi linting
-                black --check .
-                flake8 .
-                '''
+                // Chạy lệnh trong container Python 3.9-slim để đảm bảo có pip, black, flake8
+                script {
+                    docker.image('python:3.9-slim').pull(true).inside {
+                        sh '''
+                        // Cài đặt tất cả dependencies trong môi trường Docker hiện tại
+                        pip install --no-cache-dir -r requirements.txt
+                        
+                        // Thực thi linting
+                        black --check .
+                        flake8 .
+                        '''
+                    }
+                }
             }
         }
 
         stage('Test') {
             steps {
-                // Đã loại bỏ '. .venv/bin/activate' vì chúng ta đang ở trong Docker Agent Python
-                sh '''
-                pytest -q \
-                    --junitxml=reports/junit.xml \
-                    --cov=app \
-                    --cov-report=xml:reports/coverage.xml
-                '''
+                // Chạy lệnh trong container Python 3.9-slim
+                script {
+                    docker.image('python:3.9-slim').pull(true).inside {
+                        sh '''
+                        pytest -q \
+                            --junitxml=reports/junit.xml \
+                            --cov=app \
+                            --cov-report=xml:reports/coverage.xml
+                        '''
+                    }
+                }
             }
             post {
                 always {
+                    // Các bước này chạy ngoài container, trên Jenkins agent
                     junit 'reports/junit.xml'
                     recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
                     publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')],  
@@ -67,8 +72,8 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
+                // Stage này cần Sonar Scanner được cài đặt trên Jenkins Agent
                 withSonarQubeEnv("${SONARQUBE_NAME}") {
-                    // Cần đảm bảo Sonar Scanner được cài đặt trên Jenkins Agent/hoặc trong Image bạn dùng
                     sh 'sonar-scanner'
                 }
             }
@@ -84,8 +89,8 @@ pipeline {
 
         stage('Build (Docker)') {
             steps {
+                // Stage này cần Docker CLI trên Jenkins Agent
                 ansiColor('xterm') {
-                    // Stage này build Docker Image chứa ứng dụng của bạn (bao gồm Python/Dependencies)
                     sh '''
                     docker build -t ${IMAGE} .
                     '''
@@ -95,11 +100,15 @@ pipeline {
 
         stage('Security') {
             steps {
-                // Giả định Bandit là công cụ bảo mật và đã được cài đặt qua requirements.txt
-                sh '''
-                // Thực thi Security analysis (ví dụ: Bandit)
-                bandit -r . -f xml -o reports/bandit.xml || true
-                '''
+                // Chạy lệnh trong container Python 3.9-slim
+                script {
+                    docker.image('python:3.9-slim').pull(true).inside {
+                        // Thực thi Security analysis (ví dụ: Bandit)
+                        sh '''
+                        bandit -r . -f xml -o reports/bandit.xml || true
+                        '''
+                    }
+                }
             }
             post {
                 always {
@@ -111,7 +120,7 @@ pipeline {
 
         stage('Deploy: Staging') {
             steps {
-                // Lệnh triển khai Docker-compose
+                // Stage này cần Docker Compose trên Jenkins Agent
                 sh '''
                 IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
                 sleep 2
