@@ -14,6 +14,7 @@ pipeline {
   triggers { pollSCM('H/5 * * * *') }
 
   stages {
+
     stage('Checkout') {
       steps {
         checkout scm
@@ -28,7 +29,7 @@ pipeline {
           tar -czf build/app.tar.gz app model requirements.txt
           ls -lh build/
         '''
-        archiveArtifacts artifacts: 'build/app.tar.gz', fingerprint: true
+        archiveArtifacts artifacts: 'build/**', fingerprint: true
       }
     }
 
@@ -48,7 +49,7 @@ pipeline {
         always {
           junit 'reports/junit.xml'
           recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
-          recordCoverage tools: [[parser: 'Cobertura', pattern: 'reports/coverage.xml']]
+          publishCoverage adapters: [coberturaAdapter(path: 'reports/coverage.xml')]
         }
       }
     }
@@ -114,7 +115,7 @@ pipeline {
       steps {
         sh '''
           IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
-          sleep 5
+          sleep 2
           curl -sSf http://localhost:8000/health
         '''
       }
@@ -143,22 +144,8 @@ pipeline {
     stage('Monitoring (Datadog)') {
       steps {
         sh '''
-          echo ">>> Sending metrics to Datadog..."
-          curl -X POST "https://api.datadoghq.com/api/v1/series" \
-            -H "Content-Type: application/json" \
-            -H "DD-API-KEY:${DD_API_KEY}" \
-            -d @- <<EOF
-          {
-            "series": [
-              {
-                "metric": "jenkins.pipeline.success",
-                "points": [[ $(date +%s), 1 ]],
-                "type": "count",
-                "tags": ["pipeline:SIT753_Task-7.3HD", "stage:monitoring"]
-              }
-            ]
-          }
-EOF
+          echo ">>> Checking Datadog agent..."
+          docker ps | grep dd-agent || echo "Datadog agent not running"
         '''
       }
     }
