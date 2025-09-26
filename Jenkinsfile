@@ -50,8 +50,7 @@ pipeline {
         always {
           junit 'reports/junit.xml'
           recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
-          publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')],
-                          sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+          recordCoverage tools: [cobertura(pattern: 'reports/coverage.xml')]
         }
       }
     }
