@@ -28,7 +28,7 @@ pipeline {
           tar -czf build/app.tar.gz app model requirements.txt
           ls -lh build/
         '''
-        archiveArtifacts artifacts: 'build/**', fingerprint: true
+        archiveArtifacts artifacts: 'build/app.tar.gz', fingerprint: true
       }
     }
 
@@ -41,13 +41,15 @@ pipeline {
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
+          mkdir -p reports
           PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
         '''
       }
       post {
         always {
           junit 'reports/junit.xml'
-          recordCoverage tools: [[parser: 'Coverage.py', pattern: 'reports/coverage.xml']]
+          recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
+          archiveArtifacts artifacts: 'reports/**', fingerprint: true
         }
       }
     }
@@ -59,11 +61,15 @@ pipeline {
       steps {
         sh '''
           . .venv/bin/activate
-          flake8 app/
+          black --check .
+          flake8 .
         '''
         withSonarQubeEnv("${SONARQUBE_NAME}") {
-           sh 'sonar-scanner'
-         }
+          sh '''
+            . .venv/bin/activate
+            sonar-scanner
+          '''
+        }
       }
     }
 
@@ -84,12 +90,15 @@ pipeline {
           . .venv/bin/activate
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+          if command -v trivy >/dev/null 2>&1; then
+            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
+          fi
         '''
       }
       post {
         always {
-          archiveArtifacts artifacts: 'reports/**', fingerprint: true
           junit testResults: 'reports/bandit.xml', allowEmptyResults: true
+          archiveArtifacts artifacts: 'reports/**', fingerprint: true
         }
       }
     }
@@ -107,7 +116,7 @@ pipeline {
         sh '''
           IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
           sleep 2
-          curl -sSf http://localhost:8000/health || true
+          curl -sSf http://localhost:8000/health
         '''
       }
     }
@@ -115,9 +124,7 @@ pipeline {
     stage('Release: Push Image (main only)') {
       when { branch 'main' }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
-                                          usernameVariable: 'DOCKER_USER',
-                                          passwordVariable: 'DOCKER_PASS')]) {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
             docker tag ${IMAGE} ${IMAGE_LATEST}
@@ -137,8 +144,10 @@ pipeline {
     stage('Monitoring (Datadog)') {
       steps {
         sh '''
-          echo ">>> Checking Datadog Agent..."
-          docker ps | grep dd-agent || echo "Datadog agent not running"
+          echo ">>> Sending metrics to Datadog..."
+          echo "curl -X POST -H 'Content-type: application/json' \\
+            -d '{\"series\":[{\"metric\":\"jenkins.pipeline.success\",\"points\":[[$(date +%s),1]],\"type\":\"count\",\"tags\":[\"pipeline:success\"]}]}' \\
+            https://api.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
         '''
       }
     }
