@@ -1,123 +1,152 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.11-slim'
-            args '-u root:root'   // chạy với quyền root để tránh lỗi permission
-        }
+  agent any
+  environment {
+    APP_NAME = 'housing-ml-api'
+    BUILD_TAGGED = "${env.BUILD_NUMBER}"
+    DOCKERHUB_NAMESPACE = 'tiennguyen371'
+    IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
+    IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
+    SONARQUBE_NAME = 'SonarQubeServer'
+  }
+  options {
+    timestamps()
+  }
+  triggers { pollSCM('H/5 * * * *') }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        APP_NAME = 'housing-ml-api'
-        BUILD_TAGGED = "${env.BUILD_NUMBER}"
-        DOCKERHUB_NAMESPACE = 'tiennguyenn371'   // TODO: sửa thành Docker Hub namespace của bạn
-        IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
-        IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
+    stage('Build Artefact') {
+      steps {
+        sh '''
+          echo ">>> Building Python project..."
+          mkdir -p build
+          tar -czf build/app.tar.gz app model requirements.txt
+          ls -lh build/
+        '''
+        archiveArtifacts artifacts: 'build/**', fingerprint: true
+      }
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
+    stage('Test') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
+      steps {
+        sh '''
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
+        '''
+      }
+      post {
+        always {
+          junit 'reports/junit.xml'
+          recordCoverage tools: [[parser: 'Coverage.py', pattern: 'reports/coverage.xml']]
         }
-
-        stage('Setup Python Env') {
-            steps {
-                sh '''
-                    python -m venv .venv
-                    . .venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                '''
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh '''
-                    echo ">>> Building project..."
-                    mkdir -p build
-                    tar -czf build/app.tar.gz app model requirements.txt
-                    ls -lh build/
-                '''
-                archiveArtifacts artifacts: 'build/*.tar.gz', fingerprint: true
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
-                '''
-            }
-            post {
-                always {
-                    junit 'reports/junit.xml'
-                }
-            }
-        }
-
-        stage('Code Quality (Lint)') {
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    flake8 app/ || true
-                '''
-            }
-        }
-
-        stage('Security') {
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    bandit -r app || true
-                    pip-audit || true
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    docker build -t $IMAGE -t $IMAGE_LATEST .
-                '''
-            }
-        }
-
-        stage('Deploy: Staging') {
-            steps {
-                sh '''
-                    echo ">>> Deploying to staging..."
-                    docker run -d --rm -p 8000:8000 $IMAGE
-                '''
-            }
-        }
-
-        stage('Release: Push Image (main only)') {
-            when {
-                branch 'main'
-            }
-            steps {
-                withDockerRegistry([ credentialsId: 'dockerhub-credentials', url: '' ]) {
-                    sh '''
-                        docker push $IMAGE
-                        docker push $IMAGE_LATEST
-                    '''
-                }
-            }
-        }
-
-        stage('Monitoring (Datadog)') {
-            steps {
-                sh '''
-                    echo ">>> Sending dummy metric to Datadog..."
-                    curl -X POST -H "Content-type: application/json" \
-                         -H "DD-API-KEY:$DD_API_KEY" \
-                         -d '{"series":[{"metric":"app.build.success","points":[[$(date +%s), 1]],"type":"count","tags":["env:staging"]}]}' \
-                         "https://api.datadoghq.com/api/v1/series"
-                '''
-            }
-        }
+      }
     }
+
+    stage('Code Quality (Lint + SonarQube)') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
+      steps {
+        sh '''
+          . .venv/bin/activate
+          flake8 app/
+        '''
+        withSonarQubeEnv("${SONARQUBE_NAME}") {
+           sh 'sonar-scanner'
+         }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 3, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
+      }
+    }
+
+    stage('Security') {
+      agent {
+        docker { image 'python:3.11-slim' }
+      }
+      steps {
+        sh '''
+          . .venv/bin/activate
+          bandit -r app -f junit -o reports/bandit.xml || true
+          pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+        '''
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'reports/**', fingerprint: true
+          junit testResults: 'reports/bandit.xml', allowEmptyResults: true
+        }
+      }
+    }
+
+    stage('Build Docker Image') {
+      steps {
+        sh '''
+          docker build -t ${IMAGE} .
+        '''
+      }
+    }
+
+    stage('Deploy: Staging') {
+      steps {
+        sh '''
+          IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
+          sleep 2
+          curl -sSf http://localhost:8000/health || true
+        '''
+      }
+    }
+
+    stage('Release: Push Image (main only)') {
+      when { branch 'main' }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                                          usernameVariable: 'DOCKER_USER',
+                                          passwordVariable: 'DOCKER_PASS')]) {
+          sh '''
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            docker tag ${IMAGE} ${IMAGE_LATEST}
+            docker push ${IMAGE}
+            docker push ${IMAGE_LATEST}
+          '''
+        }
+        sh '''
+          git config user.email "ci@example.com"
+          git config user.name "jenkins"
+          git tag -a v${BUILD_NUMBER} -m "Release ${BUILD_NUMBER}"
+          git push origin v${BUILD_NUMBER} || true
+        '''
+      }
+    }
+
+    stage('Monitoring (Datadog)') {
+      steps {
+        sh '''
+          echo ">>> Checking Datadog Agent..."
+          docker ps | grep dd-agent || echo "Datadog agent not running"
+        '''
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'docker-compose.staging.yml', fingerprint: true
+    }
+  }
 }
