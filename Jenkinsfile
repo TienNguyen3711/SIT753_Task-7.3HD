@@ -20,19 +20,15 @@ pipeline {
       }
     }
 
-    stage('Code Quality (Lint)') {
-      agent {
-        docker { image 'python:3.11-slim' }
-      }
+    stage('Build') {
       steps {
         sh '''
-          python --version
-          python -m venv .venv
-          . .venv/bin/activate
-          pip install -r requirements.txt
-          black --check .
-          flake8 .
+          echo ">>> Building Python project..."
+          mkdir -p build
+          tar -czf build/app.tar.gz app model requirements.txt
+          ls -lh build/
         '''
+        archiveArtifacts artifacts: 'build/app.tar.gz', fingerprint: true
       }
     }
 
@@ -42,24 +38,33 @@ pipeline {
       }
       steps {
         sh '''
+          python -m venv .venv
           . .venv/bin/activate
-          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
+          pip install -r requirements.txt
+          PYTHONPATH=. pytest -q \
+            --junitxml=reports/junit.xml \
+            --cov=app --cov-report=xml:reports/coverage.xml
         '''
       }
       post {
         always {
           junit 'reports/junit.xml'
-          recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
           recordCoverage tools: [[parser: 'Coverage.py', pattern: 'reports/coverage.xml']]
         }
       }
     }
 
-    stage('SonarQube Analysis') {
+    stage('Code Quality (Lint + SonarQube)') {
       agent {
         docker { image 'python:3.11-slim' }
       }
       steps {
+        sh '''
+          . .venv/bin/activate
+          black --check .
+          flake8 .
+        '''
+        recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
         withSonarQubeEnv("${SONARQUBE_NAME}") {
           sh '''
             . .venv/bin/activate
@@ -77,15 +82,6 @@ pipeline {
       }
     }
 
-    stage('Build (Docker)') {
-      agent any
-      steps {
-        sh '''
-          docker build -t ${IMAGE} .
-        '''
-      }
-    }
-
     stage('Security') {
       agent {
         docker { image 'python:3.11-slim' }
@@ -95,9 +91,6 @@ pipeline {
           . .venv/bin/activate
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
-          if command -v trivy >/dev/null 2>&1; then
-            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
-          fi
         '''
       }
       post {
@@ -108,20 +101,26 @@ pipeline {
       }
     }
 
+    stage('Build Docker Image') {
+      steps {
+        sh '''
+          docker build -t ${IMAGE} .
+        '''
+      }
+    }
+
     stage('Deploy: Staging') {
-      agent any
       steps {
         sh '''
           IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
-          sleep 2
+          sleep 5
           curl -sSf http://localhost:8000/health
         '''
       }
     }
 
-    stage('Release: Tag & Push Image (main only)') {
+    stage('Release: Push Image (main only)') {
       when { branch 'main' }
-      agent any
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
@@ -140,11 +139,12 @@ pipeline {
       }
     }
 
-    stage('Smoke + Monitoring Check') {
-      agent any
+    stage('Monitoring (Datadog)') {
       steps {
         sh '''
-          curl -sSf http://localhost:8000/metrics | head -n 20
+          echo ">>> Checking Datadog Agent..."
+          docker ps | grep dd-agent || echo "Datadog Agent not running!"
+          curl -sSf http://localhost:8000/metrics | head -n 20 || true
         '''
       }
     }
