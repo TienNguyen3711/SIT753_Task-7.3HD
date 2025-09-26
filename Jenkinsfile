@@ -2,12 +2,12 @@ pipeline {
   agent any
 
   environment {
-    APP_NAME = 'housing-ml-api'
-    BUILD_TAGGED = "${env.BUILD_NUMBER}"
+    APP_NAME          = 'housing-ml-api'
+    BUILD_TAGGED      = "${env.BUILD_NUMBER}"
     DOCKERHUB_NAMESPACE = 'tiennguyenn371'          
-    IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
-    IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
-    SONARQUBE_NAME = 'SonarQubeServer'
+    IMAGE             = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
+    IMAGE_LATEST      = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
+    SONARQUBE_NAME    = 'SonarQubeServer'
   }
 
   options { 
@@ -15,7 +15,8 @@ pipeline {
   }
 
   triggers { 
-    pollSCM('H/5 * * * *')   // hoặc dùng GitHub webhook
+    // Poll SCM mỗi 5 phút hoặc dùng GitHub webhook
+    pollSCM('H/5 * * * *')
   }
 
   stages {
@@ -28,9 +29,7 @@ pipeline {
     stage('Code Quality (Lint)') {
       steps {
         sh '''
-          python3 -m venv .venv
-          . .venv/bin/activate
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
           black --check .
           flake8 .
         '''
@@ -41,14 +40,18 @@ pipeline {
       steps {
         sh '''
           . .venv/bin/activate
-          pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
+          pytest -q \
+            --junitxml=reports/junit.xml \
+            --cov=app \
+            --cov-report=xml:reports/coverage.xml
         '''
       }
       post {
         always {
           junit 'reports/junit.xml'
           recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
-          publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+          publishCoverage adapters: [coberturaAdapter('reports/coverage.xml')], 
+                          sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
         }
       }
     }
@@ -89,6 +92,7 @@ pipeline {
           # Code security
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+
           # Image security (nếu có Trivy)
           if command -v trivy >/dev/null 2>&1; then
             trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
