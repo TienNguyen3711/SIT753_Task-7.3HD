@@ -1,5 +1,7 @@
-import joblib, json
+import joblib
+import json
 import numpy as np
+
 
 
 def test_model_can_predict():
