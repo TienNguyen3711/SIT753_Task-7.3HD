@@ -3,7 +3,6 @@ import json
 import numpy as np
 
 
-
 def test_model_can_predict():
     model = joblib.load("model/model.pkl")
     cols = json.load(open("model/columns.json"))
