@@ -29,7 +29,7 @@ pipeline {
           python --version
           python -m venv .venv
           . .venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r requirement.txt
           black --check .
           flake8 .
         '''
@@ -95,7 +95,7 @@ pipeline {
         sh '''
           . .venv/bin/activate
           bandit -r app -f junit -o reports/bandit.xml || true
-          pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+          pip-audit -r requirement.txt -f json -o reports/pip_audit.json || true
           if command -v trivy >/dev/null 2>&1; then
             trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
           fi
