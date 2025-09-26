@@ -8,7 +8,14 @@ pipeline {
     IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
     SONARQUBE_NAME = 'SonarQubeServer'             // TODO: trùng với Jenkins config
   }
-  options { timestamps(); ansiColor('xterm'); }
+ stage('Build') {
+  steps {
+    ansiColor('xterm') {
+      sh 'echo "Building..."'
+    }
+  }
+}
+
   triggers { pollSCM('H/5 * * * *') } // hoặc GitHub webhook
 
   stages {
