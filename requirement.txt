@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+joblib
+numpy
+pydantic
+prometheus-client
+pytest
+pytest-cov
+httpx
+flake8
+black
+bandit
+pip-audit
