@@ -41,15 +41,14 @@ pipeline {
           python -m venv .venv
           . .venv/bin/activate
           pip install -r requirements.txt
-          PYTHONPATH=. pytest -q \
-            --junitxml=reports/junit.xml \
-            --cov=app --cov-report=xml:reports/coverage.xml
+          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml
         '''
       }
       post {
         always {
           junit 'reports/junit.xml'
-          recordCoverage tools: [[parser: 'Coverage.py', pattern: 'reports/coverage.xml']]
+          recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
+          recordCoverage tools: [[parser: 'Cobertura', pattern: 'reports/coverage.xml']]
         }
       }
     }
@@ -64,7 +63,6 @@ pipeline {
           black --check .
           flake8 .
         '''
-        recordIssues tools: [flake8(pattern: '**/*.py', id: 'flake8', name: 'flake8')]
         withSonarQubeEnv("${SONARQUBE_NAME}") {
           sh '''
             . .venv/bin/activate
@@ -91,6 +89,9 @@ pipeline {
           . .venv/bin/activate
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
+          if command -v trivy >/dev/null 2>&1; then
+            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
+          fi
         '''
       }
       post {
@@ -142,9 +143,22 @@ pipeline {
     stage('Monitoring (Datadog)') {
       steps {
         sh '''
-          echo ">>> Checking Datadog Agent..."
-          docker ps | grep dd-agent || echo "Datadog Agent not running!"
-          curl -sSf http://localhost:8000/metrics | head -n 20 || true
+          echo ">>> Sending metrics to Datadog..."
+          curl -X POST "https://api.datadoghq.com/api/v1/series" \
+            -H "Content-Type: application/json" \
+            -H "DD-API-KEY:${DD_API_KEY}" \
+            -d @- <<EOF
+          {
+            "series": [
+              {
+                "metric": "jenkins.pipeline.success",
+                "points": [[ $(date +%s), 1 ]],
+                "type": "count",
+                "tags": ["pipeline:SIT753_Task-7.3HD", "stage:monitoring"]
+              }
+            ]
+          }
+EOF
         '''
       }
     }
