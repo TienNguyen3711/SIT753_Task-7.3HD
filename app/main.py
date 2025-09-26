@@ -22,22 +22,25 @@ with open(COLUMNS_PATH, "r") as f:
 PRED_REQUESTS = Counter("pred_requests_total", "Total prediction requests")
 PRED_LATENCY = Histogram("pred_latency_seconds", "Prediction latency in seconds")
 
+
 class Payload(BaseModel):
     features: Dict[str, float]
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 @app.post("/predict")
 def predict(payload: Payload):
     start = time.time()
     PRED_REQUESTS.inc()
-
 
     x = [float(payload.features.get(col, 0.0)) for col in FEATURE_COLUMNS]
     y_pred = model.predict([x])[0]
