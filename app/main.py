@@ -12,7 +12,7 @@ from fastapi.responses import Response
 app = FastAPI(title="Housing Price Prediction API", version="1.0.0")
 
 # Load model + feature order
-MODEL_PATH = "model/model.pkl"
+MODEL_PATH = "model/house_price_model.pkl"
 COLUMNS_PATH = "model/columns.json"
 model = joblib.load(MODEL_PATH)
 with open(COLUMNS_PATH, "r") as f:
