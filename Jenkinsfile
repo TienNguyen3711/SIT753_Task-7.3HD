@@ -1,22 +1,22 @@
 pipeline {
   agent any
+
   environment {
     APP_NAME = 'housing-ml-api'
     BUILD_TAGGED = "${env.BUILD_NUMBER}"
-    DOCKERHUB_NAMESPACE = 'yourdockerhub'          // TODO: sửa
+    DOCKERHUB_NAMESPACE = 'tiennguyenn371'          
     IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
     IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
-    SONARQUBE_NAME = 'SonarQubeServer'             // TODO: trùng với Jenkins config
+    SONARQUBE_NAME = 'SonarQubeServer'
   }
- stage('Build') {
-  steps {
-    ansiColor('xterm') {
-      sh 'echo "Building..."'
-    }
-  }
-}
 
-  triggers { pollSCM('H/5 * * * *') } // hoặc GitHub webhook
+  options { 
+    timestamps()
+  }
+
+  triggers { 
+    pollSCM('H/5 * * * *')   // hoặc dùng GitHub webhook
+  }
 
   stages {
     stage('Checkout') {
@@ -74,9 +74,11 @@ pipeline {
 
     stage('Build (Docker)') {
       steps {
-        sh '''
-          docker build -t ${IMAGE} .
-        '''
+        ansiColor('xterm') {
+          sh '''
+            docker build -t ${IMAGE} .
+          '''
+        }
       }
     }
 
