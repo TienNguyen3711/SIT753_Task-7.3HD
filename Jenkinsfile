@@ -88,21 +88,10 @@ pipeline {
     stage('Security') {
       steps {
         sh '''
-          python3 -m venv .venv
-          . .venv/bin/activate
-
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
-          python3 -m pip install bandit pip-audit trivy
-
-          # Code security
-          bandit -r app -f junit -o reports/bandit.xml || true
-          pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
-
-          # Image security
-          if command -v trivy >/dev/null 2>&1; then
-            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
-          fi
+          python3 -m pip install --no-cache-dir -r requirements.txt
+          black --check .
+          flake8 .
         '''
       }
       post {
