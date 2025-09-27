@@ -5,6 +5,7 @@ pipeline {
         APP_NAME             = 'housing-ml-api'
         BUILD_TAGGED         = "${env.BUILD_NUMBER}"
         DOCKERHUB_NAMESPACE  = 'tiennguyen371'
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         IMAGE                = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
         IMAGE_LATEST         = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
         // Nếu có Datadog API Key trong Jenkins credentials thì khai báo:
