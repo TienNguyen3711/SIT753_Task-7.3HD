@@ -5,7 +5,7 @@ services:
     image: ${IMAGE_NAME}
     container_name: housing-ml-api
     ports:
-      - "8000:8000"
+      - "8086:8086"
     environment:
       - ENV=staging
     healthcheck:
