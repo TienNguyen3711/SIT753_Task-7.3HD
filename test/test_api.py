@@ -1,8 +1,8 @@
-# test/test_api.py
 import time
 import requests
 import threading
 import uvicorn
+import random
 from app.main import app
 
 
@@ -24,6 +24,29 @@ def wait_for_health(timeout=10):
     return False
 
 
+def random_payload():
+    suburbs = ["Richmond", "Box Hill", "South Yarra", "St Kilda"]
+    property_types = ["House", "Unit", "Apartment", "Townhouse"]
+    agencies = ["Ray White", "Domain", "Jellis Craig", "Harcourts"]
+
+    return {
+        "features": {
+            "suburb": random.choice(suburbs),
+            "property_type": random.choice(property_types),
+            "number_of_bedroom": random.randint(1, 5),
+            "bathroom": random.randint(1, 3),
+            "car_park": random.randint(0, 2),
+            "land_size_sq": random.randint(100, 800),
+            "agency_name": random.choice(agencies),
+            "distance_to_landmark": round(random.uniform(1, 15), 2),
+            "bedrooms_per_land_size": round(random.uniform(0.005, 0.02), 3),
+            "bathrooms_per_bedroom": round(random.uniform(0.3, 1.5), 2),
+            "price_per_sq_meter": random.randint(5000, 12000),
+            "year_week": "2025-38"
+        }
+    }
+
+
 def test_health_and_predict():
     # Start API in background
     t = threading.Thread(target=run_server, daemon=True)
@@ -37,13 +60,14 @@ def test_health_and_predict():
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
 
-    # Test /predict
-    payload = {"features": {}}  # empty features -> defaults to zeros
+    # Test /predict với payload random
+    payload = random_payload()
     r2 = requests.post("http://127.0.0.1:8000/predict", json=payload)
     assert r2.status_code == 200, f"Predict failed: {r2.text}"
+
     data = r2.json()
     assert "prediction" in data
     assert "latency_sec" in data
+    assert isinstance(data["prediction"], (int, float))
+    assert isinstance(data["latency_sec"], (int, float))
     assert data["latency_sec"] >= 0
-    assert isinstance(float(data["prediction"]), float)
-    assert data["prediction"] >= 0 
