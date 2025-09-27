@@ -35,9 +35,12 @@ pipeline {
                 echo ">>> Starting test container..."
                 sh "docker run -d --name test-api-container test-image-${env.BUILD_NUMBER}"
 
-                echo ">>> Running pytest inside container..."
+                echo ">>> Running healthcheck.py..."
+                sh "docker exec test-api-container python healthcheck.py"
+
+                echo '>>> Running pytest inside container...'
                 sh '''
-                    docker exec test-api-container pytest test/ -q \
+                    docker exec test-api-container pytest -q \
                         --maxfail=1 --disable-warnings \
                         --junitxml=/app/reports/junit.xml \
                         --cov=app --cov-report=xml:/app/reports/coverage.xml || true
@@ -52,7 +55,7 @@ pipeline {
             post {
                 always {
                     echo ">>> Publishing test reports..."
-                    junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+                    junit 'reports/junit.xml'
                 }
             }
         }
