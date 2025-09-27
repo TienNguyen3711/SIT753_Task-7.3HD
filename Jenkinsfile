@@ -56,16 +56,17 @@ pipeline {
 
     stage('Code Quality (Lint + SonarQube)') {
       agent {
-        docker { image "${IMAGE}" } // dùng image bạn build đã có sonar-scanner
+        docker { image "${IMAGE}" } // dùng image build đã có sonar-scanner
       }
       steps {
         sh '''
-          . .venv/bin/activate || true
+          if [ -d ".venv" ]; then . .venv/bin/activate; fi
           black --check .
           flake8 .
         '''
         withSonarQubeEnv("${SONARQUBE_NAME}") {
           sh '''
+            if [ -d ".venv" ]; then . .venv/bin/activate; fi
             sonar-scanner
           '''
         }
@@ -86,7 +87,7 @@ pipeline {
       }
       steps {
         sh '''
-          . .venv/bin/activate || true
+          if [ -d ".venv" ]; then . .venv/bin/activate; fi
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
           if command -v trivy >/dev/null 2>&1; then
