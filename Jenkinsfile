@@ -51,9 +51,6 @@ pipeline {
 
                 echo ">>> Copying reports out of container..."
                 sh "docker cp test-api-container:/app/reports ./reports || true"
-
-                echo ">>> Stopping test container..."
-                sh "docker stop test-api-container || true"
             }
             post {
                 always {
@@ -65,11 +62,9 @@ pipeline {
 
         stage('Code Quality (SonarQube/CodeClimate)') {
             steps {
-                sh '''
-                    echo ">>> Running code quality checks inside container..."
-                    docker exec test-api-container black --check . || true
-                    docker exec test-api-container flake8 . || true
-                '''
+                echo ">>> Running code quality checks inside container..."
+                sh "docker exec test-api-container black --check . || true"
+                sh "docker exec test-api-container flake8 . || true"
             }
         }
 
@@ -81,11 +76,12 @@ pipeline {
 
         stage('Security (Bandit/Trivy/Snyk)') {
             steps {
-                sh '''
-                    echo ">>> Running security scan inside container..."
-                    docker exec test-api-container bandit -r app || true
-                    echo "No critical vulnerabilities found"
-                '''
+                echo ">>> Running security scan inside container..."
+                sh "docker exec test-api-container bandit -r app || true"
+                echo "No critical vulnerabilities found"
+
+                echo ">>> Stopping test container..."
+                sh "docker stop test-api-container || true"
             }
         }
 
@@ -108,6 +104,9 @@ pipeline {
         stage('Deploy: Staging') {
             steps {
                 sh '''
+                    echo ">>> Removing old housing-ml-api container if exists..."
+                    docker rm -f housing-ml-api || true
+
                     echo ">>> Deploying to staging with docker compose..."
                     IMAGE_NAME=${IMAGE} docker-compose -f docker-compose-staging.yml up -d --remove-orphans --build
 
