@@ -29,8 +29,11 @@ pipeline {
                 echo ">>> Preparing reports directory..."
                 sh 'rm -rf reports && mkdir -p reports'
 
-                echo ">>> Removing old container if exists..."
-                sh "docker rm -f test-api-container || true"
+                echo ">>> Removing container using 8086 if exists..."
+                sh '''
+                  docker ps -q --filter "publish=8086" | xargs -r docker stop
+                  docker rm -f test-api-container || true
+                '''
 
                 echo ">>> Starting test container (mapped to 8086)..."
                 sh "docker run -d --name test-api-container -p 8086:8000 test-image-${env.BUILD_NUMBER}"
@@ -56,6 +59,9 @@ pipeline {
                 always {
                     echo ">>> Publishing test reports..."
                     junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+
+                    echo ">>> Stopping test container after Test stage..."
+                    sh "docker stop test-api-container || true"
                 }
             }
         }
@@ -76,12 +82,22 @@ pipeline {
 
         stage('Security (Bandit/Trivy/Snyk)') {
             steps {
+                echo ">>> Starting container again for security scan..."
+                sh '''
+                  docker rm -f test-api-container || true
+                  docker run -d --name test-api-container -p 8086:8000 test-image-${env.BUILD_NUMBER}
+                  sleep 10
+                '''
+
                 echo ">>> Running security scan inside container..."
                 sh "docker exec test-api-container bandit -r app || true"
                 echo "No critical vulnerabilities found"
-
-                echo ">>> Stopping test container..."
-                sh "docker stop test-api-container || true"
+            }
+            post {
+                always {
+                    echo ">>> Stopping test container after Security stage..."
+                    sh "docker stop test-api-container || true"
+                }
             }
         }
 
