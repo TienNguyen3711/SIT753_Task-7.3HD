@@ -2,6 +2,9 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# Thêm dòng này để apt-get chạy không tương tác
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Cài deps hệ thống
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl \
