@@ -26,11 +26,20 @@ pipeline {
                 echo ">>> Building Docker image for tests..."
                 sh "docker build --no-cache -t test-image-${env.BUILD_NUMBER} ."
 
-                echo ">>> Running tests inside Docker container..."
+                echo ">>> Preparing reports directory..."
                 sh 'rm -rf reports && mkdir -p reports'
 
-                sh "docker run --rm -d --name test-api-container test-image-${env.BUILD_NUMBER}"
+                echo ">>> Removing old container if exists..."
+                sh "docker rm -f test-api-container || true"
 
+                echo ">>> Starting test container..."
+                sh """
+                    docker run -d --name test-api-container \
+                        -v $PWD/reports:/app/reports \
+                        test-image-${env.BUILD_NUMBER}
+                """
+
+                echo ">>> Waiting for healthcheck..."
                 sh '''
                     for i in $(seq 1 15); do
                         HEALTH_STATUS=$(docker exec test-api-container curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
@@ -38,11 +47,12 @@ pipeline {
                             echo "API is healthy. Running tests."
                             break
                         fi
-                        echo "API is not healthy yet. Waiting..."
+                        echo "API not healthy yet... waiting"
                         sleep 3
                     done
                 '''
 
+                echo ">>> Running pytest inside container..."
                 sh '''
                     docker exec test-api-container pytest -q \
                         --maxfail=1 --disable-warnings \
@@ -50,10 +60,12 @@ pipeline {
                         --cov=app --cov-report=xml:/app/reports/coverage.xml || true
                 '''
 
+                echo ">>> Stopping test container..."
                 sh "docker stop test-api-container || true"
             }
             post {
                 always {
+                    echo ">>> Publishing test reports..."
                     junit 'reports/junit.xml'
                 }
             }
