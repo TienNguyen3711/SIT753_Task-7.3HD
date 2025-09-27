@@ -4,7 +4,7 @@ pipeline {
     environment {
         APP_NAME              = 'housing-ml-api'
         BUILD_TAGGED          = "${env.BUILD_NUMBER}"
-        DOCKERHUB_NAMESPACE   = 'tiennguyen371'
+        DOCKERHUB_NAMESPACE   = 'tiennguyenn371'
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         IMAGE                 = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
         IMAGE_LATEST          = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
@@ -38,8 +38,8 @@ pipeline {
                 echo ">>> Waiting for app startup..."
                 sh "sleep 10"
 
-                echo ">>> Running healthcheck.py..."
-                sh "python healthcheck.py || true"
+                echo ">>> Running healthcheck.py inside container..."
+                sh "docker exec test-api-container python healthcheck.py || true"
 
                 echo ">>> Running pytest inside container..."
                 sh '''
@@ -66,9 +66,9 @@ pipeline {
         stage('Code Quality (SonarQube/CodeClimate)') {
             steps {
                 sh '''
-                    echo ">>> Running code quality checks..."
-                    black --check . || true
-                    flake8 . || true
+                    echo ">>> Running code quality checks inside container..."
+                    docker exec test-api-container black --check . || true
+                    docker exec test-api-container flake8 . || true
                 '''
             }
         }
@@ -82,8 +82,8 @@ pipeline {
         stage('Security (Bandit/Trivy/Snyk)') {
             steps {
                 sh '''
-                    echo ">>> Running security scan..."
-                    bandit -r app || true
+                    echo ">>> Running security scan inside container..."
+                    docker exec test-api-container bandit -r app || true
                     echo "No critical vulnerabilities found"
                 '''
             }
