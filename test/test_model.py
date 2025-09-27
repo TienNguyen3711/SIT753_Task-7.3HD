@@ -1,15 +1,14 @@
 # test/test_model.py
-
 import joblib
 import json
 import numpy as np
 import pandas as pd
 import os
 from sklearn.pipeline import Pipeline
+from sklearn.dummy import DummyRegressor
 
 
-def test_model_can_predict():
-    # Load model & metadata (dùng dummy nếu không có)
+def load_model():
     model_path = "model/model.pkl"
     cols_path = "model/columns.json"
 
@@ -18,25 +17,27 @@ def test_model_can_predict():
         with open(cols_path, "r") as f:
             cols = json.load(f)
     else:
-        # fallback dummy
         cols = ["f1", "f2", "f3"]
-        from sklearn.dummy import DummyRegressor
+        model = DummyRegressor(strategy="mean").fit([[0, 0, 0]], [1000])
 
-        model = DummyRegressor(strategy="mean")
-        model.fit([[0, 0, 0]], [1000])
+    return model, cols
 
-    # Tạo dummy input
+
+def test_model_can_predict():
+    model, cols = load_model()
+
+    # Dummy input
     if isinstance(model, Pipeline):
-        sample = {c: 0 for c in cols}
-        x = pd.DataFrame([sample], columns=cols)
+        x = pd.DataFrame([{c: 0 for c in cols}])
     else:
         x = pd.DataFrame([np.zeros(len(cols))], columns=cols)
 
-    # Make prediction
+    # Predict
     y = model.predict(x)
-    assert y is not None and len(y) == 1
 
+    assert y is not None and len(y) == 1
     pred = float(y[0])
+
+    # Check validity
     assert np.isfinite(pred)
-    assert pred >= 0
-    assert pred <= 10_000_000  # reasonable range
+    assert 0 <= pred <= 10_000_000
