@@ -32,14 +32,14 @@ pipeline {
                 echo ">>> Removing old container if exists..."
                 sh "docker rm -f test-api-container || true"
 
-                echo ">>> Starting test container..."
-                sh "docker run -d --name test-api-container test-image-${env.BUILD_NUMBER}"
+                echo ">>> Starting test container (mapped to 8086)..."
+                sh "docker run -d --name test-api-container -p 8086:8000 test-image-${env.BUILD_NUMBER}"
 
                 echo ">>> Waiting for app startup..."
                 sh "sleep 10"
 
                 echo ">>> Running healthcheck.py..."
-                sh "docker exec test-api-container python healthcheck.py || true"
+                sh "python healthcheck.py || true"
 
                 echo ">>> Running pytest inside container..."
                 sh '''
