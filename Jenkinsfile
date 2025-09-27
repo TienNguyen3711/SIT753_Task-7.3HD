@@ -59,14 +59,11 @@ pipeline {
                 always {
                     echo ">>> Publishing test reports..."
                     junit allowEmptyResults: true, testResults: 'reports/junit.xml'
-
-                    echo ">>> Stopping test container after Test stage..."
-                    sh "docker stop test-api-container || true"
                 }
             }
         }
 
-        stage('Code Quality (SonarQube/CodeClimate)') {
+        stage('Code Quality') {
             steps {
                 echo ">>> Running code quality checks inside container..."
                 sh "docker exec test-api-container black --check . || true"
@@ -80,24 +77,19 @@ pipeline {
             }
         }
 
-        stage('Security (Bandit/Trivy/Snyk)') {
+        stage('Security') {
             steps {
-                echo ">>> Starting container again for security scan..."
-                sh '''
-                  docker rm -f test-api-container || true
-                  docker run -d --name test-api-container -p 8086:8000 test-image-${env.BUILD_NUMBER}
-                  sleep 10
-                '''
-
                 echo ">>> Running security scan inside container..."
                 sh "docker exec test-api-container bandit -r app || true"
                 echo "No critical vulnerabilities found"
             }
-            post {
-                always {
-                    echo ">>> Stopping test container after Security stage..."
-                    sh "docker stop test-api-container || true"
-                }
+        }
+
+        stage('Cleanup Test Container') {
+            steps {
+                echo ">>> Cleaning up test container..."
+                sh "docker stop test-api-container || true"
+                sh "docker rm -f test-api-container || true"
             }
         }
 
@@ -165,6 +157,17 @@ pipeline {
                     fi
                     echo "Monitoring stage completed."
                 '''
+            }
+        }
+
+        stage('Deploy Demo') {
+            steps {
+                echo ">>> Deploying demo container on port 8087..."
+                sh '''
+                  docker rm -f housing-ml-api-demo || true
+                  docker run -d --name housing-ml-api-demo -p 8087:8000 ${IMAGE_LATEST}
+                '''
+                echo "Demo available at http://localhost:8087"
             }
         }
     }
