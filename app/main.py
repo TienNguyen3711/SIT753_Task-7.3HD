@@ -6,6 +6,7 @@ import joblib
 import json
 import numpy as np
 import time
+import os  # Thêm import os để xử lý đường dẫn
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 
@@ -37,8 +38,14 @@ def load_model():
     """Load model và metadata khi app khởi động"""
     global model, FEATURE_COLUMNS, IS_PIPELINE
     try:
-        MODEL_PATH = "model/model.pkl"
-        COLUMNS_PATH = "model/columns.json"
+        # Lấy đường dẫn tuyệt đối của thư mục chứa file main.py
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Xây dựng đường dẫn đến các file model và metadata
+        # Chúng ta đi lên một cấp thư mục (..), sau đó vào thư mục 'model'
+        MODEL_PATH = os.path.join(current_dir, "..", "model", "model.pkl")
+        COLUMNS_PATH = os.path.join(current_dir, "..", "model", "columns.json")
+
         model = joblib.load(MODEL_PATH)
         with open(COLUMNS_PATH, "r") as f:
             FEATURE_COLUMNS = json.load(f)
@@ -46,9 +53,12 @@ def load_model():
         # check xem model có phải pipeline không
         from sklearn.pipeline import Pipeline
         IS_PIPELINE = isinstance(model, Pipeline)
+        print("Model và metadata đã được tải thành công!")
 
     except Exception as e:
-        raise RuntimeError(f"❌ Failed to load model or columns: {e}")
+        # Thay vì chỉ thông báo lỗi chung, chúng ta in đường dẫn để dễ debug hơn
+        print(f"Lỗi khi tải model. Kiểm tra đường dẫn: {MODEL_PATH} và {COLUMNS_PATH}")
+        raise RuntimeError(f"Failed to load model or columns: {e}")
 
 
 @app.get("/health")

@@ -9,7 +9,8 @@ services:
     environment:
       - ENV=staging
     healthcheck:
-      test: ["CMD", "echo", "ok"]
+      # Lệnh kiểm tra sức khỏe bằng cách gửi yêu cầu GET đến endpoint /health
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5  # Tăng số lần thử lại để đảm bảo ứng dụng có đủ thời gian khởi động
