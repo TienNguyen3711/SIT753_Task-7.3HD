@@ -33,11 +33,7 @@ pipeline {
                 sh "docker rm -f test-api-container || true"
 
                 echo ">>> Starting test container..."
-                sh """
-                    docker run -d --name test-api-container \
-                        -v $PWD/reports:/app/reports \
-                        test-image-${env.BUILD_NUMBER}
-                """
+                sh "docker run -d --name test-api-container test-image-${env.BUILD_NUMBER}"
 
                 echo ">>> Waiting for healthcheck..."
                 sh '''
@@ -59,6 +55,9 @@ pipeline {
                         --junitxml=/app/reports/junit.xml \
                         --cov=app --cov-report=xml:/app/reports/coverage.xml || true
                 '''
+
+                echo ">>> Copying reports out of container..."
+                sh "docker cp test-api-container:/app/reports ./reports || true"
 
                 echo ">>> Stopping test container..."
                 sh "docker stop test-api-container || true"
