@@ -165,7 +165,7 @@ pipeline {
                 echo ">>> Deploying demo container on port 8087..."
                 sh '''
                   docker rm -f housing-ml-api-demo || true
-                  docker run -d --name housing-ml-api-demo -p 8087:8000 ${IMAGE_LATEST}
+                  docker run -d --name housing-ml-api-demo -p 8087:8086 ${IMAGE_LATEST}
                 '''
                 echo "Demo available at http://localhost:8087"
             }
