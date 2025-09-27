@@ -108,6 +108,7 @@ pipeline {
                     docker rm -f housing-ml-api || true
 
                     echo ">>> Deploying to staging with docker compose..."
+                    docker network rm task73hd_default || true
                     IMAGE_NAME=${IMAGE} docker-compose -f docker-compose-staging.yml up -d --remove-orphans --build
 
                     echo ">>> Waiting for container health..."
