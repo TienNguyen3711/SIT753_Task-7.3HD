@@ -2,15 +2,20 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = 'housing-ml-api'
-        BUILD_TAGGED = "${env.BUILD_NUMBER}"
+        APP_NAME            = 'housing-ml-api'
+        BUILD_TAGGED        = "${env.BUILD_NUMBER}"
         DOCKERHUB_NAMESPACE = 'tiennguyen371'
-        IMAGE = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
-        IMAGE_LATEST = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
+        IMAGE               = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
+        IMAGE_LATEST        = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
     }
 
-    options { timestamps() }
-    triggers { pollSCM('H/5 * * * *') }
+    options { 
+        timestamps() 
+    }
+
+    triggers { 
+        pollSCM('H/5 * * * *') 
+    }
 
     stages {
         stage('Checkout') {
