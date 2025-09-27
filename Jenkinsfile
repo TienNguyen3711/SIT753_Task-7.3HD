@@ -26,7 +26,7 @@ pipeline {
             steps {
                 echo ">>> Building Docker image for tests..."
                 // Tránh sử dụng cache để test code mới nhất
-                sh 'docker build --no-cache -t test-image-${env.BUILD_NUMBER} .'
+                sh "docker build --no-cache -t test-image-${env.BUILD_NUMBER} ."
 
                 echo ">>> Running tests inside Docker container..."
                 // Tạo thư mục reports trước
@@ -34,7 +34,7 @@ pipeline {
                 sh 'mkdir -p reports'
                 
                 // Chạy container và mount thư mục reports để lưu kết quả
-                sh '''
+                sh "
                     docker run --rm \
                         -v ${PWD}/reports:/app/reports \
                         test-image-${env.BUILD_NUMBER} \
@@ -42,7 +42,7 @@ pipeline {
                             --junitxml=reports/junit.xml \
                             --cov=app \
                             --cov-report=xml:reports/coverage.xml
-                '''
+                "
             }
             post {
                 always {
