@@ -40,9 +40,11 @@ pipeline {
         sh '''
           python -m venv .venv
           . .venv/bin/activate
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
           mkdir -p reports
-          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
+          # pytest luôn tạo report, kể cả fail
+          PYTHONPATH=. pytest -q --junitxml=reports/junit.xml \
+            --cov=app --cov-report=xml:reports/coverage.xml || true
         '''
       }
       post {
@@ -56,7 +58,7 @@ pipeline {
 
     stage('Code Quality (Lint + SonarQube)') {
       agent {
-        docker { image "${IMAGE}" } // dùng image build đã có sonar-scanner
+        docker { image "${IMAGE}" } // dùng image đã build, có sonar-scanner
       }
       steps {
         sh '''
@@ -65,10 +67,7 @@ pipeline {
           flake8 .
         '''
         withSonarQubeEnv("${SONARQUBE_NAME}") {
-          sh '''
-            if [ -d ".venv" ]; then . .venv/bin/activate; fi
-            sonar-scanner
-          '''
+          sh 'sonar-scanner'
         }
       }
     }
@@ -91,7 +90,8 @@ pipeline {
           bandit -r app -f junit -o reports/bandit.xml || true
           pip-audit -r requirements.txt -f json -o reports/pip_audit.json || true
           if command -v trivy >/dev/null 2>&1; then
-            trivy image --exit-code 0 --format table -o reports/trivy.txt ${IMAGE} || true
+            trivy image --exit-code 0 --format table \
+              -o reports/trivy.txt ${IMAGE} || true
           fi
         '''
       }
@@ -124,7 +124,9 @@ pipeline {
     stage('Release: Push Image (main only)') {
       when { branch 'main' }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                                          usernameVariable: 'DOCKER_USER',
+                                          passwordVariable: 'DOCKER_PASS')]) {
           sh '''
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
             docker tag ${IMAGE} ${IMAGE_LATEST}
@@ -145,9 +147,9 @@ pipeline {
       steps {
         sh '''
           echo ">>> Sending metrics to Datadog..."
-          echo "curl -X POST -H 'Content-type: application/json' \\
-            -d '{\"series\":[{\"metric\":\"jenkins.pipeline.success\",\"points\":[[$(date +%s),1]],\"type\":\"count\",\"tags\":[\"pipeline:success\"]}]}' \\
-            https://api.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
+          curl -X POST -H 'Content-type: application/json' \
+            -d '{"series":[{"metric":"jenkins.pipeline.success","points":[['"$(date +%s)"',1]],"type":"count","tags":["pipeline:success"]}]}' \
+            https://api.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY || true
         '''
       }
     }
