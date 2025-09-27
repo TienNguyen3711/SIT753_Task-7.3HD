@@ -15,6 +15,7 @@ RUN pip install --upgrade pip \
 # Copy code + model
 COPY app ./app
 COPY model ./model
+COPY test ./test
 COPY healthcheck.py .
 
 EXPOSE 8000
