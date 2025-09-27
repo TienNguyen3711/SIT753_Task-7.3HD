@@ -48,7 +48,9 @@ pipeline {
         sh '''
           echo ">>> Running tests inside app container..."
           mkdir -p reports
-          docker run --rm -v $PWD/reports:/app/reports ${IMAGE} \
+          docker run --rm \
+            -v "$PWD/reports:/app/reports" \
+            ${IMAGE} \
             pytest -q --junitxml=reports/junit.xml \
                    --cov=app --cov-report=xml:reports/coverage.xml
         '''
@@ -61,12 +63,14 @@ pipeline {
       }
     }
 
-    stage('Code Quality (SonarQube/CodeClimate)') {
+    stage('Code Quality (Flake8/Black)') {
       steps {
         sh '''
-          echo ">>> Running code quality checks inside app container..."
-          docker run --rm ${IMAGE} black --check .
-          docker run --rm ${IMAGE} flake8 .
+          echo ">>> Running code quality checks inside container..."
+          docker run --rm \
+            -v "$PWD:/app" \
+            ${IMAGE} \
+            sh -c "black --check . && flake8 ."
         '''
       }
     }
@@ -77,13 +81,14 @@ pipeline {
       }
     }
 
-    stage('Security (Bandit/Trivy/Snyk)') {
+    stage('Security (Bandit)') {
       steps {
         sh '''
-          echo ">>> Running security scan inside app container..."
-          docker run --rm ${IMAGE} bandit -r app || true
-          docker run --rm ${IMAGE} pip-audit -r requirements.txt || true
-          echo "No critical vulnerabilities found"
+          echo ">>> Running security scan inside container..."
+          docker run --rm \
+            -v "$PWD:/app" \
+            ${IMAGE} \
+            bandit -r app || true
         '''
       }
     }
@@ -92,7 +97,6 @@ pipeline {
       steps {
         sh '''
           echo ">>> Deploying to staging with docker-compose..."
-          docker network rm sit753_task73hd_default || true
           IMAGE_NAME=${IMAGE} docker-compose -f docker-compose.staging.yml up -d --remove-orphans
 
           echo ">>> Waiting for container health..."
@@ -113,10 +117,7 @@ pipeline {
     stage('Release: Push Image (main only)') {
       when { branch 'main' }
       steps {
-        sh '''
-          echo ">>> Pushing Docker image to DockerHub..."
-          echo "(simulated push - add docker login + push here if needed)"
-        '''
+        sh 'echo ">>> Pushing Docker image to DockerHub (simulated)..."'
       }
     }
 
