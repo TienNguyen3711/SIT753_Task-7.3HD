@@ -90,8 +90,8 @@ pipeline {
     stage('Deploy: Staging') {
       steps {
         sh '''
-          echo ">>> Deploying to staging with docker compose..."
-          IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans
+          echo ">>> Deploying to staging with docker-compose..."
+          IMAGE_NAME=${IMAGE} docker-compose -f docker-compose.staging.yml up -d --remove-orphans
 
           echo ">>> Waiting for container health..."
           for i in $(seq 1 10); do
