@@ -7,7 +7,7 @@ pipeline {
         DOCKERHUB_NAMESPACE  = 'tiennguyen371'
         IMAGE                = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:${BUILD_TAGGED}"
         IMAGE_LATEST         = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
-        // nếu có Datadog API Key trong Jenkins credentials thì khai báo:
+        // Nếu có Datadog API Key trong Jenkins credentials thì khai báo:
         // DATADOG_API_KEY = credentials('datadog-api-key')
     }
 
@@ -25,28 +25,40 @@ pipeline {
         stage('Test') {
             steps {
                 echo ">>> Building Docker image for tests..."
-                // Tránh sử dụng cache để test code mới nhất
                 sh "docker build --no-cache -t test-image-${env.BUILD_NUMBER} ."
 
                 echo ">>> Running tests inside Docker container..."
-                // Tạo thư mục reports trước
-                sh 'rm -rf reports'
-                sh 'mkdir -p reports'
-                
-                // Chạy container và mount thư mục reports để lưu kết quả
-                sh "
-                    docker run --rm \
-                        -v ${PWD}/reports:/app/reports \
-                        test-image-${env.BUILD_NUMBER} \
-                        pytest -q --maxfail=1 --disable-warnings \
-                            --junitxml=reports/junit.xml \
-                            --cov=app \
-                            --cov-report=xml:reports/coverage.xml
-                "
+                sh 'rm -rf reports && mkdir -p reports'
+
+                // Khởi động container ở chế độ nền
+                sh "docker run --rm -d --name test-api-container test-image-${env.BUILD_NUMBER}"
+
+                // Chờ API sẵn sàng
+                sh '''
+                    for i in $(seq 1 15); do
+                        HEALTH_STATUS=$(docker exec test-api-container curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+                        if [ "$HEALTH_STATUS" -eq 200 ]; then
+                            echo "API is healthy. Running tests."
+                            break
+                        fi
+                        echo "API is not healthy yet. Waiting..."
+                        sleep 3
+                    done
+                '''
+
+                // Chạy pytest khi API đã sẵn sàng
+                sh '''
+                    docker exec test-api-container pytest -q \
+                        --maxfail=1 --disable-warnings \
+                        --junitxml=/app/reports/junit.xml \
+                        --cov=app --cov-report=xml:/app/reports/coverage.xml
+                '''
+
+                // Dừng container sau khi test xong
+                sh "docker stop test-api-container"
             }
             post {
                 always {
-                    // Ghi nhận kết quả test
                     junit 'reports/junit.xml'
                 }
             }
@@ -90,7 +102,7 @@ pipeline {
             steps {
                 sh '''
                     echo ">>> Deploying to staging with docker compose..."
-                    IMAGE_NAME=${IMAGE} docker compose -f docker-compose.staging.yml up -d --remove-orphans --build
+                    IMAGE_NAME=${IMAGE} docker compose -f docker-compose-staging.yml up -d --remove-orphans --build
 
                     echo ">>> Waiting for container health..."
                     for i in $(seq 1 60); do
