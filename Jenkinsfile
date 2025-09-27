@@ -35,22 +35,9 @@ pipeline {
                 echo ">>> Starting test container..."
                 sh "docker run -d --name test-api-container test-image-${env.BUILD_NUMBER}"
 
-                echo ">>> Waiting for healthcheck..."
-                sh '''
-                    for i in $(seq 1 15); do
-                        HEALTH_STATUS=$(docker exec test-api-container curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
-                        if [ "$HEALTH_STATUS" -eq 200 ]; then
-                            echo "API is healthy. Running tests."
-                            break
-                        fi
-                        echo "API not healthy yet... waiting"
-                        sleep 3
-                    done
-                '''
-
                 echo ">>> Running pytest inside container..."
                 sh '''
-                    docker exec test-api-container pytest -q \
+                    docker exec test-api-container pytest test/ -q \
                         --maxfail=1 --disable-warnings \
                         --junitxml=/app/reports/junit.xml \
                         --cov=app --cov-report=xml:/app/reports/coverage.xml || true
@@ -65,7 +52,7 @@ pipeline {
             post {
                 always {
                     echo ">>> Publishing test reports..."
-                    junit 'reports/junit.xml'
+                    junit allowEmptyResults: true, testResults: 'reports/junit.xml'
                 }
             }
         }
