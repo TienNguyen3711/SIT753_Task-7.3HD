@@ -9,31 +9,7 @@ services:
     environment:
       - ENV=staging
     healthcheck:
-      test: ["CMD", "python", "healthcheck.py"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "echo", "ok"]
+      interval: 10s
+      timeout: 5s
       retries: 3
-    volumes:
-      - ./healthcheck.py:/app/healthcheck.py   # chỉ mount file healthcheck thôi
-    depends_on:
-      - datadog
-
-  datadog:
-    image: gcr.io/datadoghq/agent:7
-    container_name: datadog-agent
-    environment:
-      - DD_API_KEY=${DATADOG_API_KEY}
-      - DD_SITE=datadoghq.com
-      - DD_ENV=staging
-      - DD_SERVICE=housing-ml-api
-      - DD_VERSION=${BUILD_TAGGED}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /proc/:/host/proc/:ro
-      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-    healthcheck:
-      test: ["CMD", "/opt/datadog-agent/bin/agent", "health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped

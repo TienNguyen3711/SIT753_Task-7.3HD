@@ -2,11 +2,12 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Cài deps cần thiết (nếu code cần)
-RUN apt-get update && apt-get install -y build-essential curl \
+# Cài deps hệ thống
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements + install Python deps
+# Copy requirements trước để tận dụng cache
 COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
@@ -14,10 +15,9 @@ RUN pip install --upgrade pip \
 # Copy code + model
 COPY app ./app
 COPY model ./model
-
-# Copy healthcheck script
 COPY healthcheck.py .
 
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["python", "healthcheck.py"]
