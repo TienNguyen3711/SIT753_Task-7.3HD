@@ -34,18 +34,28 @@ pipeline {
       }
     }
 
+    stage('Build Docker Image') {
+      steps {
+        sh '''
+          echo ">>> Building Docker image..."
+          docker build -t ${IMAGE} .
+        '''
+      }
+    }
+
     stage('Test') {
       steps {
         sh '''
-          echo ">>> Running tests..."
+          echo ">>> Running tests inside app container..."
           mkdir -p reports
-          export PYTHONPATH=.
-          pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
+          docker run --rm -v $PWD/reports:/app/reports ${IMAGE} \
+            pytest -q --junitxml=reports/junit.xml \
+                   --cov=app --cov-report=xml:reports/coverage.xml
         '''
       }
       post {
         always {
-          junit 'test.xml'
+          junit 'reports/junit.xml'
           archiveArtifacts artifacts: 'reports/**', fingerprint: true
         }
       }
@@ -54,10 +64,9 @@ pipeline {
     stage('Code Quality (SonarQube/CodeClimate)') {
       steps {
         sh '''
-          echo ">>> Running code quality checks..."
-          black --check . || true
-          flake8 . || true
-          echo "Code quality stage passed"
+          echo ">>> Running code quality checks inside app container..."
+          docker run --rm ${IMAGE} black --check .
+          docker run --rm ${IMAGE} flake8 .
         '''
       }
     }
@@ -71,18 +80,10 @@ pipeline {
     stage('Security (Bandit/Trivy/Snyk)') {
       steps {
         sh '''
-          echo ">>> Running security scan..."
-          bandit -r app || true
+          echo ">>> Running security scan inside app container..."
+          docker run --rm ${IMAGE} bandit -r app || true
+          docker run --rm ${IMAGE} pip-audit -r requirements.txt || true
           echo "No critical vulnerabilities found"
-        '''
-      }
-    }
-
-    stage('Build Docker Image') {
-      steps {
-        sh '''
-          echo ">>> Building Docker image..."
-          docker build -t ${IMAGE} . || echo "Docker build simulated"
         '''
       }
     }
@@ -91,6 +92,7 @@ pipeline {
       steps {
         sh '''
           echo ">>> Deploying to staging with docker-compose..."
+          docker network rm sit753_task73hd_default || true
           IMAGE_NAME=${IMAGE} docker-compose -f docker-compose.staging.yml up -d --remove-orphans
 
           echo ">>> Waiting for container health..."
@@ -111,7 +113,10 @@ pipeline {
     stage('Release: Push Image (main only)') {
       when { branch 'main' }
       steps {
-        sh 'echo ">>> Pushing Docker image to DockerHub (simulated)..."'
+        sh '''
+          echo ">>> Pushing Docker image to DockerHub..."
+          echo "(simulated push - add docker login + push here if needed)"
+        '''
       }
     }
 
