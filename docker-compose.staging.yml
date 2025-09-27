@@ -9,8 +9,8 @@ services:
     environment:
       - ENV=staging
     healthcheck:
-      # Lệnh kiểm tra sức khỏe bằng cách gửi yêu cầu GET đến endpoint /health
-      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      # Lệnh kiểm tra sức khỏe bằng cách chạy tệp healthcheck.py
+      test: ["CMD-SHELL", "python healthcheck.py"]
       interval: 10s
       timeout: 5s
-      retries: 5  # Tăng số lần thử lại để đảm bảo ứng dụng có đủ thời gian khởi động
+      retries: 5

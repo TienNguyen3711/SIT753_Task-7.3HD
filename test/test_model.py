@@ -1,4 +1,5 @@
 # test/test_model.py
+
 import joblib
 import json
 import numpy as np
@@ -20,8 +21,9 @@ def test_model_can_predict():
         # fallback dummy
         cols = ["f1", "f2", "f3"]
         from sklearn.dummy import DummyRegressor
+
         model = DummyRegressor(strategy="mean")
-        model.fit([[0,0,0]], [1000])
+        model.fit([[0, 0, 0]], [1000])
 
     # Tạo dummy input
     if isinstance(model, Pipeline):

@@ -3,10 +3,12 @@ from app.main import app
 
 client = TestClient(app)
 
+
 def test_health_endpoint():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json().get("status") == "ok"
+
 
 def test_predict_endpoint():
     payload = {
@@ -22,11 +24,13 @@ def test_predict_endpoint():
             "bedrooms_per_land_size": 0.019,
             "bathrooms_per_bedroom": 1.0,
             "price_per_sq_meter": 10751,
-            "year_week": "2025-38"
+            "year_week": "2025-38",
         }
     }
+
     r = client.post("/predict", json=payload)
     assert r.status_code == 200
+
     data = r.json()
     assert "prediction" in data
     assert isinstance(data["prediction"], float)
