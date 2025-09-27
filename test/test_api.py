@@ -29,6 +29,7 @@ def random_payload():
     property_types = ["House", "Unit", "Apartment", "Townhouse"]
     agencies = ["Ray White", "Domain", "Jellis Craig", "Harcourts"]
 
+    # Luôn trả về 1 dict (không bị list bọc ngoài)
     return {
         "features": {
             "suburb": random.choice(suburbs),
@@ -60,7 +61,7 @@ def test_health_and_predict():
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
 
-    # Test /predict với payload random
+    # Test /predict với payload random (luôn đúng format)
     payload = random_payload()
     r2 = requests.post("http://127.0.0.1:8000/predict", json=payload)
     assert r2.status_code == 200, f"Predict failed: {r2.text}"
