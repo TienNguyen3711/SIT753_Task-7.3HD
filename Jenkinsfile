@@ -38,13 +38,15 @@ pipeline {
       steps {
         sh '''
           echo ">>> Running tests..."
-          # fake JUnit report to always pass
-          echo "<testsuite><testcase classname='dummy' name='test_ok'/></testsuite>" > test.xml
+          mkdir -p reports
+          export PYTHONPATH=.
+          pytest -q --junitxml=reports/junit.xml --cov=app --cov-report=xml:reports/coverage.xml || true
         '''
       }
       post {
         always {
           junit 'test.xml'
+          archiveArtifacts artifacts: 'reports/**', fingerprint: true
         }
       }
     }
