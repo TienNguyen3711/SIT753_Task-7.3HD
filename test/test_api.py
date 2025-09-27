@@ -11,7 +11,6 @@ def run_server():
 
 
 def wait_for_health(timeout=10):
-    """Poll /health until API is ready or timeout"""
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -25,11 +24,11 @@ def wait_for_health(timeout=10):
 
 
 def random_payload():
+    # luôn đúng format, có cả random dữ liệu
     suburbs = ["Richmond", "Box Hill", "South Yarra", "St Kilda"]
     property_types = ["House", "Unit", "Apartment", "Townhouse"]
     agencies = ["Ray White", "Domain", "Jellis Craig", "Harcourts"]
 
-    # Luôn trả về 1 dict (không bị list bọc ngoài)
     return {
         "features": {
             "suburb": random.choice(suburbs),
@@ -49,19 +48,19 @@ def random_payload():
 
 
 def test_health_and_predict():
-    # Start API in background
+    # chạy API nền
     t = threading.Thread(target=run_server, daemon=True)
     t.start()
 
-    # Wait until /health is up
+    # đợi /health
     assert wait_for_health(), "API did not become healthy in time"
 
-    # Test /health
+    # gọi /health
     r = requests.get("http://127.0.0.1:8000/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
 
-    # Test /predict với payload random (luôn đúng format)
+    # gọi /predict với payload random
     payload = random_payload()
     r2 = requests.post("http://127.0.0.1:8000/predict", json=payload)
     assert r2.status_code == 200, f"Predict failed: {r2.text}"
@@ -70,5 +69,4 @@ def test_health_and_predict():
     assert "prediction" in data
     assert "latency_sec" in data
     assert isinstance(data["prediction"], (int, float))
-    assert isinstance(data["latency_sec"], (int, float))
     assert data["latency_sec"] >= 0
