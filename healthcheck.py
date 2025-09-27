@@ -4,7 +4,7 @@ import requests
 
 def main():
     try:
-        resp = requests.get("http://localhost:8000/health")
+        resp = requests.get("http://localhost:8086/health")
         if resp.status_code == 200:
             print("Healthcheck passed ")
             sys.exit(0)
