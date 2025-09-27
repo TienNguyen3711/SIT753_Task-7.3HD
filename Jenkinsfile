@@ -41,6 +41,7 @@ pipeline {
                     rm -rf reports && mkdir -p reports
                     docker run --rm \
                         -v "$PWD/reports:/app/reports" \
+                        -e PYTHONPATH=/app \
                         ${IMAGE} \
                         pytest -q --maxfail=1 --disable-warnings \
                         --junitxml=reports/junit.xml \
