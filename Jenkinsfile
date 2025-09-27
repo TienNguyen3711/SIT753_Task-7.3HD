@@ -67,6 +67,10 @@ pipeline {
         withSonarQubeEnv("${SONARQUBE_NAME}") {
           sh '''
             . .venv/bin/activate
+            apt-get update && apt-get install -y unzip wget
+            wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+            unzip sonar-scanner-cli-*.zip
+            export PATH=$PATH:$(pwd)/sonar-scanner-5.0.1.3006-linux/bin
             sonar-scanner
           '''
         }
