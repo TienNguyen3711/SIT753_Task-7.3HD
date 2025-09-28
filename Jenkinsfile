@@ -166,6 +166,18 @@ pipeline {
                 sh '''
                   docker rm -f housing-ml-api-demo || true
                   docker run -d --name housing-ml-api-demo -p 8087:8086 ${IMAGE_LATEST}
+
+                  echo ">>> Waiting for demo container health..."
+                  for i in $(seq 1 30); do
+                      STATUS=$(docker inspect -f '{{.State.Health.Status}}' housing-ml-api-demo 2>/dev/null || echo "starting")
+                      if [ "$STATUS" = "healthy" ]; then
+                          echo "Demo container is healthy."
+                          exit 0
+                      fi
+                      sleep 1
+                  done
+                  echo "ERROR: demo container not healthy in time."
+                  exit 1
                 '''
                 echo "Demo available at http://localhost:8087"
             }
