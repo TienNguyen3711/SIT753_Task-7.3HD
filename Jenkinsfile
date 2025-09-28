@@ -12,7 +12,8 @@ pipeline {
 
     options { 
         disableConcurrentBuilds()
-        timestamps() }
+        timestamps()
+    }
     triggers { pollSCM('H/5 * * * *') }
 
     stages {
@@ -31,9 +32,9 @@ pipeline {
                 echo ">>> Preparing reports directory..."
                 sh 'rm -rf reports && mkdir -p reports'
 
-                echo ">>> Removing container using 8086 if exists..."
+                echo ">>> Removing old test container if exists..."
                 sh '''
-                  docker ps -q --filter "publish=8086" | xargs -r docker stop
+                  docker stop test-api-container || true
                   docker rm -f test-api-container || true
                 '''
 
@@ -117,9 +118,11 @@ pipeline {
                     echo ">>> Removing old housing-ml-api container if exists..."
                     docker rm -f housing-ml-api || true
 
+                    echo ">>> Clean up old docker-compose services..."
+                    docker-compose -p staging -f docker-compose-staging.yml down || true
+
                     echo ">>> Deploying to staging with docker compose..."
-                    docker network rm task73hd_default || true
-                    IMAGE_NAME=${IMAGE} docker-compose -f docker-compose-staging.yml up -d --remove-orphans --build
+                    IMAGE_NAME=${IMAGE} docker-compose -p staging -f docker-compose-staging.yml up -d --remove-orphans --build
 
                     echo ">>> Waiting for container health..."
                     for i in $(seq 1 60); do
