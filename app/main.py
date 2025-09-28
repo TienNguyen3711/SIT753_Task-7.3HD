@@ -11,9 +11,8 @@ from fastapi.responses import Response
 
 app = FastAPI(title="Housing Price Prediction API", version="1.0.0")
 
-# ----------------------
+
 # Global vars cho model và feature columns
-# ----------------------
 model = None
 FEATURE_COLUMNS: List[str] = []
 IS_PIPELINE = False
@@ -22,16 +21,14 @@ IS_PIPELINE = False
 users = {}          # username -> password
 predictions = []    # list lưu lịch sử dự đoán
 
-# ----------------------
 # Prometheus metrics
-# ----------------------
+
 PRED_REQUESTS = Counter("pred_requests_total", "Total prediction requests")
 PRED_LATENCY = Histogram("pred_latency_seconds", "Prediction latency in seconds")
 
 
-# ----------------------
+
 # Schemas
-# ----------------------
 class Payload(BaseModel):
     features: Dict[str, Any] = Field(
         ...,
@@ -48,9 +45,8 @@ class User(BaseModel):
     password: str
 
 
-# ----------------------
-# Load model khi app startup
-# ----------------------
+
+# Load model when app startup
 @app.on_event("startup")
 def load_model():
     global model, FEATURE_COLUMNS, IS_PIPELINE
