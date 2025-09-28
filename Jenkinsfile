@@ -115,25 +115,26 @@ pipeline {
         stage('Deploy: Staging') {
             steps {
                 sh '''
-                    echo ">>> Removing old housing-ml-api container if exists..."
+                    echo ">>> Removing old containers if exists..."
                     docker rm -f housing-ml-api || true
+                    docker rm -f streamlit-ui || true
 
                     echo ">>> Clean up old docker-compose services..."
                     docker-compose -p staging -f docker-compose-staging.yml down || true
 
-                    echo ">>> Deploying to staging with docker compose..."
+                    echo ">>> Deploying backend + streamlit with docker compose..."
                     IMAGE_NAME=${IMAGE} docker-compose -p staging -f docker-compose-staging.yml up -d --remove-orphans --build
 
-                    echo ">>> Waiting for container health..."
+                    echo ">>> Waiting for backend health..."
                     for i in $(seq 1 60); do
                         STATUS=$(docker inspect -f '{{.State.Health.Status}}' housing-ml-api 2>/dev/null || echo "starting")
                         if [ "$STATUS" = "healthy" ]; then
-                            echo "Container is healthy."
+                            echo "Backend container is healthy."
                             exit 0
                         fi
                         sleep 1
                     done
-                    echo "ERROR: container not healthy in time."
+                    echo "ERROR: backend container not healthy in time."
                     exit 1
                 '''
             }

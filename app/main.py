@@ -72,26 +72,24 @@ def load_model():
         raise RuntimeError(f"Failed to load model or columns: {e}")
 
 
-# ----------------------
+
 # Auth Endpoints
-# ----------------------
 @app.post("/auth/register")
 def register(user: User):
     if user.username in users:
         raise HTTPException(status_code=400, detail="User already exists")
     users[user.username] = user.password
-    return {"message": "✅ User registered successfully"}
+    return {"message": "User registered successfully"}
 
 @app.post("/auth/login")
 def login(user: User):
     if users.get(user.username) != user.password:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    return {"token": "fake-jwt-token", "message": "✅ Login success"}
+    return {"token": "fake-jwt-token", "message": " Login success"}
 
 
-# ----------------------
+
 # Prediction + CRUD History
-# ----------------------
 @app.post("/predict")
 def predict(payload: Payload):
     if model is None or not FEATURE_COLUMNS:
@@ -113,7 +111,7 @@ def predict(payload: Payload):
     latency = time.time() - start
     PRED_LATENCY.observe(latency)
 
-    # Lưu lịch sử
+    # Save prediction
     record = {
         "id": len(predictions) + 1,
         "features": payload.features,
@@ -137,9 +135,8 @@ def delete_prediction(pred_id: int):
     return {"message": f"Prediction {pred_id} deleted"}
 
 
-# ----------------------
+
 # Model Info
-# ----------------------
 @app.get("/model/info")
 def model_info():
     return {
@@ -150,9 +147,8 @@ def model_info():
     }
 
 
-# ----------------------
+
 # Health & Metrics
-# ----------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}

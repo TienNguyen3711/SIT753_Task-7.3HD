@@ -1,7 +1,7 @@
 version: '3.9'
 
 services:
-  app:
+  backend:
     image: ${IMAGE_NAME}
     container_name: housing-ml-api
     ports:
@@ -9,8 +9,21 @@ services:
     environment:
       - ENV=staging
     healthcheck:
-      # Lệnh kiểm tra sức khỏe bằng cách chạy tệp healthcheck.py
       test: ["CMD-SHELL", "python healthcheck.py"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  streamlit:
+    image: python:3.10-slim
+    container_name: streamlit-ui
+    working_dir: /app
+    volumes:
+      - ./streamlit_app:/app
+    ports:
+      - "8501:8501"
+    command: >
+      sh -c "pip install streamlit requests &&
+             streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0"
+    depends_on:
+      - backend

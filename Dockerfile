@@ -1,27 +1,27 @@
-# Base image: Python 3.10 slim
+# Use official Python runtime as a parent image
 FROM python:3.10-slim
 
-# Thiết lập thư mục làm việc
+# Set working directory
 WORKDIR /app
 
-# Copy requirements.txt trước để tận dụng cache
+# Copy requirements.txt 
 COPY requirements.txt .
 
-# Cài đặt pip và dependencies Python
+# Install pip and Python dependencies
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copy code ứng dụng
+# Copy application code
 COPY app ./app
 COPY model ./model
 COPY healthcheck.py .
 
-# Expose cổng
+# Expose port
 EXPOSE 8086
 
-# Thêm HEALTHCHECK dùng script Python
+# Add HEALTHCHECK using Python script
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
   CMD python healthcheck.py || exit 1
 
-# Lệnh khởi động FastAPI app
+# Command to run FastAPI app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8086"]
