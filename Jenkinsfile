@@ -38,8 +38,8 @@ pipeline {
                   docker rm -f test-api-container || true
                 '''
 
-                echo ">>> Starting test container (mapped to 8086)..."
-                sh "docker run -d --name test-api-container -p 8086:8086 test-image-${env.BUILD_NUMBER}"
+                echo ">>> Starting test container (mapped to 8093)..."
+                sh "docker run -d --name test-api-container -p 8093:8086 test-image-${env.BUILD_NUMBER}"
 
                 echo ">>> Waiting for app startup..."
                 sh "sleep 10"
