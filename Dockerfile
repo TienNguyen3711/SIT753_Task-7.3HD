@@ -20,7 +20,7 @@ COPY healthcheck.py .
 EXPOSE 8086
 
 # Add HEALTHCHECK using Python script
-HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=5 \
   CMD python healthcheck.py || exit 1
 
 # Command to run FastAPI app
