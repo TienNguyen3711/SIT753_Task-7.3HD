@@ -8,7 +8,6 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Cài đặt pip và dependencies Python
-# Không cần build-essential nếu requirements chỉ có numpy/pandas/sklearn (đã có wheel)
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
@@ -19,6 +18,10 @@ COPY healthcheck.py .
 
 # Expose cổng
 EXPOSE 8086
+
+# Thêm HEALTHCHECK dùng script Python
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+  CMD python healthcheck.py || exit 1
 
 # Lệnh khởi động FastAPI app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8086"]
