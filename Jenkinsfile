@@ -149,7 +149,7 @@ pipeline {
             }
         }
 
-        stage('Monitoring (Datadog)') {
+        stage('Monitoring') {
             steps {
                 sh '''
                     echo ">>> Checking container health for monitoring..."
