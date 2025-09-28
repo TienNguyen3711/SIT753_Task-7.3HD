@@ -10,7 +10,9 @@ pipeline {
         IMAGE_LATEST          = "${DOCKERHUB_NAMESPACE}/${APP_NAME}:latest"
     }
 
-    options { timestamps() }
+    options { 
+        disableConcurrentBuilds()
+        timestamps() }
     triggers { pollSCM('H/5 * * * *') }
 
     stages {
